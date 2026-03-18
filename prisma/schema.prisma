@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Sector {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  methods     ProductionMethod[]
+  pathways    BenchmarkPathway[]
+}
+
+model ProductionMethod {
+  id                  String   @id @default(cuid())
+  name                String
+  sectorId            String
+  sector              Sector   @relation(fields: [sectorId], references: [id])
+  baseCO2             Float
+  category            String   @default("")
+  commercialStatus    String?
+  trl                 String?
+  capex               String?
+  energyDemand        String?
+  deploymentTimeframe String?
+  description         String?
+  baselineAssumptions String?
+  references          String?
+  displayOrder        Int
+  active              Boolean  @default(true)
+  applicability       MethodLeverApplicability[]
+}
+
+model Lever {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  displayName   String
+  displayOrder  Int
+  maxReduction  Float    @default(0)
+  active        Boolean  @default(true)
+  options       LeverOption[]
+  applicability MethodLeverApplicability[]
+}
+
+model LeverOption {
+  id             String  @id @default(cuid())
+  leverId        String
+  lever          Lever   @relation(fields: [leverId], references: [id], onDelete: Cascade)
+  name           String
+  factor         Float
+  assumptionNote String?
+  displayOrder   Int
+  isDefault      Boolean @default(false)
+
+  @@unique([leverId, name])
+}
+
+model MethodLeverApplicability {
+  id       String           @id @default(cuid())
+  methodId String
+  leverId  String
+  method   ProductionMethod @relation(fields: [methodId], references: [id], onDelete: Cascade)
+  lever    Lever            @relation(fields: [leverId], references: [id], onDelete: Cascade)
+
+  @@unique([methodId, leverId])
+}
+
+model BenchmarkPathway {
+  id           String   @id @default(cuid())
+  name         String
+  sectorId     String
+  sector       Sector   @relation(fields: [sectorId], references: [id])
+  active       Boolean  @default(true)
+  displayOrder Int
+  annualRates  PathwayAnnualRate[]
+}
+
+model PathwayAnnualRate {
+  id        String           @id @default(cuid())
+  pathwayId String
+  pathway   BenchmarkPathway @relation(fields: [pathwayId], references: [id])
+  year      Int
+  rate      Float
+
+  @@unique([pathwayId, year])
+}
