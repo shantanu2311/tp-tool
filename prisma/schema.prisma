@@ -89,3 +89,53 @@ model PathwayAnnualRate {
 
   @@unique([pathwayId, year])
 }
+
+// ── Scenario Analysis Models (Phase 2) ──
+
+model ScenarioFamily {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  source      String
+  description String?
+  version     String?
+  dataSource  String?
+  lastUpdated DateTime @default(now())
+  scenarios   ClimateScenario[]
+}
+
+model ClimateScenario {
+  id                 String   @id @default(cuid())
+  familyId           String
+  family             ScenarioFamily @relation(fields: [familyId], references: [id])
+  name               String
+  shortName          String
+  temperatureOutcome Float
+  riskCategory       String?
+  description        String?
+  active             Boolean  @default(true)
+  displayOrder       Int
+  isDefault          Boolean  @default(false)
+  dataPoints         ScenarioDataPoint[]
+  carbonPrices       ScenarioCarbonPrice[]
+}
+
+model ScenarioDataPoint {
+  id          String          @id @default(cuid())
+  scenarioId  String
+  scenario    ClimateScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  year        Int
+  intensity   Float
+  annualRate  Float?
+
+  @@unique([scenarioId, year])
+}
+
+model ScenarioCarbonPrice {
+  id          String          @id @default(cuid())
+  scenarioId  String
+  scenario    ClimateScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  year        Int
+  priceUSD    Float
+
+  @@unique([scenarioId, year])
+}

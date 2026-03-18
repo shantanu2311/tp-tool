@@ -108,3 +108,38 @@ export async function fetchSectorData(): Promise<SectorData[]> {
     return { id: s.id, name: s.name, methods, levers, pathways };
   });
 }
+
+// ── Scenario Data (Phase 2) ──
+
+import type { ScenarioFamilyData, ScenarioData } from './calc-engine/types';
+
+export async function fetchScenarioData(): Promise<ScenarioFamilyData[]> {
+  const res = await fetch('/api/scenarios');
+  const families = await res.json();
+
+  return families.map((f: Record<string, unknown>) => ({
+    id: f.id as string,
+    name: f.name as string,
+    source: f.source as string,
+    description: f.description as string | undefined,
+    version: f.version as string | undefined,
+    scenarios: (f.scenarios as Record<string, unknown>[]).map((sc): ScenarioData => ({
+      id: sc.id as string,
+      familyName: f.name as string,
+      name: sc.name as string,
+      shortName: sc.shortName as string,
+      temperatureOutcome: sc.temperatureOutcome as number,
+      riskCategory: sc.riskCategory as ScenarioData['riskCategory'],
+      description: sc.description as string | undefined,
+      isDefault: sc.isDefault as boolean,
+      dataPoints: (sc.dataPoints as { year: number; intensity: number }[]).map((dp) => ({
+        year: dp.year,
+        intensity: dp.intensity,
+      })),
+      carbonPrices: (sc.carbonPrices as { year: number; priceUSD: number }[]).map((cp) => ({
+        year: cp.year,
+        priceUSD: cp.priceUSD,
+      })),
+    })),
+  }));
+}

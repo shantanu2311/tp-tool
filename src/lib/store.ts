@@ -30,6 +30,10 @@ interface WizardState {
   customMethods: MethodData[];
   customLevers: LeverDefinition[];
 
+  // Company financials (optional, defaults fill gaps)
+  companyRegion: string;
+  companyFinancials: Record<string, number | string | boolean>;
+
   // CAPEX settings
   capexScenario: CapexScenario;
   capexOverrides: Record<string, CapexNumeric>;
@@ -60,6 +64,11 @@ interface WizardState {
   updateCustomLever: (id: string, updates: Partial<LeverDefinition>) => void;
   removeCustomLever: (id: string) => void;
 
+  // Company financials actions
+  setCompanyRegion: (region: string) => void;
+  setCompanyFinancial: (key: string, value: number | string | boolean) => void;
+  setCompanyFinancials: (updates: Record<string, number | string | boolean>) => void;
+
   // CAPEX actions
   setCapexScenario: (scenario: CapexScenario) => void;
   setCapexOverride: (methodId: string, capex: CapexNumeric) => void;
@@ -87,6 +96,8 @@ export const useWizardStore = create<WizardState>((set) => ({
 
   customMethods: [],
   customLevers: [],
+  companyRegion: 'global',
+  companyFinancials: {},
   capexScenario: 'mid',
   capexOverrides: {},
 
@@ -192,6 +203,24 @@ export const useWizardStore = create<WizardState>((set) => ({
 
   // ── CAPEX Actions ──
 
+  setCompanyRegion: (region) =>
+    set((prev) => ({
+      companyRegion: region,
+      ...(prev.hasSubmitted ? { isDirty: true } : {}),
+    })),
+
+  setCompanyFinancial: (key, value) =>
+    set((prev) => ({
+      companyFinancials: { ...prev.companyFinancials, [key]: value },
+      ...(prev.hasSubmitted ? { isDirty: true } : {}),
+    })),
+
+  setCompanyFinancials: (updates) =>
+    set((prev) => ({
+      companyFinancials: { ...prev.companyFinancials, ...updates },
+      ...(prev.hasSubmitted ? { isDirty: true } : {}),
+    })),
+
   setCapexScenario: (scenario) =>
     set((prev) => ({
       capexScenario: scenario,
@@ -226,6 +255,8 @@ export const useWizardStore = create<WizardState>((set) => ({
       isDirty: false,
       customMethods: [],
       customLevers: [],
+      companyRegion: 'global',
+      companyFinancials: {},
       capexScenario: 'mid',
       capexOverrides: {},
     }),

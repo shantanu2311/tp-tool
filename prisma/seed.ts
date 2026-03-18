@@ -1,9 +1,15 @@
 import { PrismaClient } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const prisma = new PrismaClient();
 
 async function main() {
   // Clear existing data in correct order (foreign key deps)
+  await prisma.scenarioCarbonPrice.deleteMany();
+  await prisma.scenarioDataPoint.deleteMany();
+  await prisma.climateScenario.deleteMany();
+  await prisma.scenarioFamily.deleteMany();
   await prisma.pathwayAnnualRate.deleteMany();
   await prisma.benchmarkPathway.deleteMany();
   await prisma.methodLeverApplicability.deleteMany();
@@ -538,10 +544,81 @@ async function main() {
     }
   }
 
+  // ── Climate Scenarios (Phase 2) ──────────────────────────────────────
+  // Helper: linearly interpolate between milestones to get yearly data
+  function interpolateYearly(milestones: Record<string, number>, startYear: number, endYear: number): { year: number; value: number }[] {
+    const years = Object.keys(milestones).map(Number).sort((a, b) => a - b);
+    const result: { year: number; value: number }[] = [];
+    for (let y = startYear; y <= endYear; y++) {
+      // Find surrounding milestones
+      let lo = years[0], hi = years[years.length - 1];
+      for (let i = 0; i < years.length - 1; i++) {
+        if (y >= years[i] && y <= years[i + 1]) { lo = years[i]; hi = years[i + 1]; break; }
+      }
+      if (y <= years[0]) { result.push({ year: y, value: milestones[String(years[0])] }); continue; }
+      if (y >= years[years.length - 1]) { result.push({ year: y, value: milestones[String(years[years.length - 1])] }); continue; }
+      const t = (y - lo) / (hi - lo);
+      const val = milestones[String(lo)] + t * (milestones[String(hi)] - milestones[String(lo)]);
+      result.push({ year: y, value: Math.round(val * 1000) / 1000 });
+    }
+    return result;
+  }
+
+  let scenarioCount = 0;
+  const dataDir = path.join(__dirname, '..', 'data');
+
+  for (const filename of ['iea-scenarios.json', 'ngfs-scenarios.json']) {
+    const raw = JSON.parse(fs.readFileSync(path.join(dataDir, filename), 'utf-8'));
+    const family = await prisma.scenarioFamily.create({
+      data: {
+        name: raw.family.name,
+        source: raw.family.source,
+        description: raw.family.description ?? null,
+        version: raw.family.version ?? null,
+        dataSource: raw.family.dataSource ?? null,
+      },
+    });
+
+    for (const sc of raw.scenarios) {
+      const scenario = await prisma.climateScenario.create({
+        data: {
+          familyId: family.id,
+          name: sc.name,
+          shortName: sc.shortName,
+          temperatureOutcome: sc.temperatureOutcome,
+          riskCategory: sc.riskCategory ?? null,
+          description: sc.description ?? null,
+          displayOrder: sc.displayOrder,
+          isDefault: sc.isDefault ?? false,
+        },
+      });
+
+      // Seed yearly intensity data points (interpolated)
+      const intensityPoints = interpolateYearly(sc.milestones, 2025, 2070);
+      for (const pt of intensityPoints) {
+        await prisma.scenarioDataPoint.create({
+          data: { scenarioId: scenario.id, year: pt.year, intensity: pt.value },
+        });
+      }
+
+      // Seed yearly carbon prices (interpolated)
+      if (sc.carbonPriceMilestones) {
+        const pricePoints = interpolateYearly(sc.carbonPriceMilestones, 2025, 2070);
+        for (const pt of pricePoints) {
+          await prisma.scenarioCarbonPrice.create({
+            data: { scenarioId: scenario.id, year: pt.year, priceUSD: pt.value },
+          });
+        }
+      }
+
+      scenarioCount++;
+    }
+  }
+
   // ── Summary ───────────────────────────────────────────────────────────
   const optionCount = leverOptions.reduce((sum, [, opts]) => sum + opts.length, 0);
   console.log('Seed completed successfully.');
-  console.log(`Created: 1 sector, ${methodDefs.length} methods, ${leverDefs.length} levers, ${optionCount} lever options, ${applicabilityCount} applicability records, 6 benchmark pathways`);
+  console.log(`Created: 1 sector, ${methodDefs.length} methods, ${leverDefs.length} levers, ${optionCount} lever options, ${applicabilityCount} applicability records, 6 benchmark pathways, ${scenarioCount} climate scenarios`);
 }
 
 main()

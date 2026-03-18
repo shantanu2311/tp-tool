@@ -1,0 +1,77 @@
+{
+  "family": {
+    "name": "NGFS",
+    "source": "Network for Greening the Financial System",
+    "description": "NGFS Phase V climate scenarios used by 140+ central banks for climate stress testing",
+    "version": "Phase V (November 2024)",
+    "dataSource": "https://data.ece.iiasa.ac.at/ngfs/"
+  },
+  "scenarios": [
+    {
+      "name": "Net Zero 2050",
+      "shortName": "NZ2050",
+      "temperatureOutcome": 1.5,
+      "riskCategory": "orderly",
+      "description": "Early, coordinated policy. Low transition + physical risk. Gradual carbon price increase.",
+      "isDefault": true,
+      "displayOrder": 1,
+      "milestones": { "2025": 1.38, "2030": 1.05, "2035": 0.80, "2040": 0.55, "2045": 0.35, "2050": 0.18 },
+      "carbonPriceMilestones": { "2025": 80, "2030": 200, "2035": 300, "2040": 400, "2045": 500, "2050": 600 }
+    },
+    {
+      "name": "Below 2°C",
+      "shortName": "B2C",
+      "temperatureOutcome": 1.7,
+      "riskCategory": "orderly",
+      "description": "Moderate early action. Carbon price rises steadily. Technology change moderate-to-fast.",
+      "isDefault": false,
+      "displayOrder": 2,
+      "milestones": { "2025": 1.39, "2030": 1.15, "2035": 1.00, "2040": 0.85, "2045": 0.70, "2050": 0.55 },
+      "carbonPriceMilestones": { "2025": 50, "2030": 130, "2035": 200, "2040": 280, "2045": 360, "2050": 450 }
+    },
+    {
+      "name": "Divergent Net Zero",
+      "shortName": "DNZ",
+      "temperatureOutcome": 1.5,
+      "riskCategory": "disorderly",
+      "description": "Reaches 1.5°C but with higher transition risk. Divergent policies across sectors/regions.",
+      "isDefault": false,
+      "displayOrder": 3,
+      "milestones": { "2025": 1.39, "2030": 1.10, "2035": 0.75, "2040": 0.45, "2045": 0.28, "2050": 0.15 },
+      "carbonPriceMilestones": { "2025": 60, "2030": 180, "2035": 340, "2040": 500, "2045": 600, "2050": 700 }
+    },
+    {
+      "name": "Delayed Transition",
+      "shortName": "DT",
+      "temperatureOutcome": 1.8,
+      "riskCategory": "disorderly",
+      "description": "No emission reduction until 2030, then sharp policy action. Very high carbon prices after 2030.",
+      "isDefault": false,
+      "displayOrder": 4,
+      "milestones": { "2025": 1.40, "2030": 1.38, "2035": 1.00, "2040": 0.65, "2045": 0.40, "2050": 0.25 },
+      "carbonPriceMilestones": { "2025": 10, "2030": 30, "2035": 200, "2040": 400, "2045": 600, "2050": 800 }
+    },
+    {
+      "name": "Nationally Determined Contributions (NDCs)",
+      "shortName": "NDCs",
+      "temperatureOutcome": 2.6,
+      "riskCategory": "hot_house",
+      "description": "Only current NDC pledges implemented. Low transition risk but severe physical risk.",
+      "isDefault": false,
+      "displayOrder": 5,
+      "milestones": { "2025": 1.40, "2030": 1.32, "2035": 1.25, "2040": 1.18, "2045": 1.12, "2050": 1.05 },
+      "carbonPriceMilestones": { "2025": 10, "2030": 30, "2035": 40, "2040": 50, "2045": 55, "2050": 60 }
+    },
+    {
+      "name": "Current Policies",
+      "shortName": "CP",
+      "temperatureOutcome": 3.0,
+      "riskCategory": "hot_house",
+      "description": "Only existing policies. Minimal transition risk but catastrophic physical risk.",
+      "isDefault": false,
+      "displayOrder": 6,
+      "milestones": { "2025": 1.40, "2030": 1.35, "2035": 1.30, "2040": 1.25, "2045": 1.22, "2050": 1.20 },
+      "carbonPriceMilestones": { "2025": 5, "2030": 10, "2035": 12, "2040": 15, "2045": 20, "2050": 25 }
+    }
+  ]
+}

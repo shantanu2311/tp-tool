@@ -1,0 +1,41 @@
+{
+  "family": {
+    "name": "IEA",
+    "source": "International Energy Agency",
+    "description": "IEA World Energy Outlook scenarios for the steel sector",
+    "version": "WEO 2024",
+    "dataSource": "https://iea.org/reports/iron-and-steel-technology-roadmap"
+  },
+  "scenarios": [
+    {
+      "name": "Net Zero Emissions by 2050 (NZE)",
+      "shortName": "NZE",
+      "temperatureOutcome": 1.5,
+      "description": "Global net-zero CO2 by 2050. Most ambitious. Rapid scale-up of H2-DRI, CCUS, scrap-EAF.",
+      "isDefault": true,
+      "displayOrder": 1,
+      "milestones": { "2025": 1.40, "2030": 1.07, "2035": 0.83, "2040": 0.60, "2045": 0.40, "2050": 0.20 },
+      "carbonPriceMilestones": { "2025": 80, "2030": 200, "2035": 300, "2040": 400, "2045": 500, "2050": 600 }
+    },
+    {
+      "name": "Announced Pledges Scenario (APS)",
+      "shortName": "APS",
+      "temperatureOutcome": 1.7,
+      "description": "All government net-zero pledges and NDCs met on time. Moderate ambition.",
+      "isDefault": false,
+      "displayOrder": 2,
+      "milestones": { "2025": 1.40, "2030": 1.20, "2035": 1.15, "2040": 1.10, "2045": 0.85, "2050": 0.60 },
+      "carbonPriceMilestones": { "2025": 50, "2030": 100, "2035": 150, "2040": 220, "2045": 300, "2050": 400 }
+    },
+    {
+      "name": "Stated Policies Scenario (STEPS)",
+      "shortName": "STEPS",
+      "temperatureOutcome": 2.4,
+      "description": "Only currently enacted policies. Business-as-usual with existing measures.",
+      "isDefault": false,
+      "displayOrder": 3,
+      "milestones": { "2025": 1.40, "2030": 1.30, "2035": 1.25, "2040": 1.20, "2045": 1.15, "2050": 1.10 },
+      "carbonPriceMilestones": { "2025": 20, "2030": 35, "2035": 45, "2040": 55, "2045": 65, "2050": 75 }
+    }
+  ]
+}

@@ -18,6 +18,10 @@ import type {
   LeverDefinition,
   CapexResult,
 } from '@/lib/calc-engine/types';
+import { AnimatePresence, motion } from 'framer-motion';
+import confetti from 'canvas-confetti';
+import { CommandPalette } from '@/components/command-palette';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Stepper } from '@/components/wizard/stepper';
 import { PeriodInputTable } from '@/components/wizard/period-input-table';
 import { KPICards } from '@/components/dashboard/kpi-cards';
@@ -29,6 +33,29 @@ import { CapexKpiCards } from '@/components/dashboard/capex-kpi-cards';
 import { CapexByPeriodChart } from '@/components/dashboard/capex-by-period-chart';
 import { CapexByTechnologyChart } from '@/components/dashboard/capex-by-technology-chart';
 import { CapexWaterfallChart } from '@/components/dashboard/capex-waterfall-chart';
+import { ScenarioSelector } from '@/components/dashboard/scenario-selector';
+import { ScenarioTrajectoryChart } from '@/components/dashboard/scenario-trajectory-chart';
+import { ScenarioGapTable } from '@/components/dashboard/scenario-gap-table';
+import { CarbonBudgetChart, CarbonCostChart } from '@/components/dashboard/carbon-budget-chart';
+import { calcScenarioAnalysis } from '@/lib/calc-engine/scenario-analysis';
+import { fetchScenarioData } from '@/lib/data';
+import type { ScenarioFamilyData, ScenarioAnalysisResult, ITRResult } from '@/lib/calc-engine/types';
+import { calcITR } from '@/lib/calc-engine/itr-assessment';
+import { getDefaults, REGIONS } from '@/lib/calc-engine/industry-defaults';
+import { ITRGauge } from '@/components/dashboard/itr-gauge';
+import { ITRDetailsCard } from '@/components/dashboard/itr-details-card';
+import { ITRSensitivityChart } from '@/components/dashboard/itr-sensitivity-chart';
+import { AssessmentSummary } from '@/components/dashboard/assessment-summary';
+import { calcLCT } from '@/lib/calc-engine/lct-assessment';
+import { calcCTA } from '@/lib/calc-engine/cta-assessment';
+import { LCTScoreCard } from '@/components/dashboard/lct-score-card';
+import { CTAShadeCard } from '@/components/dashboard/cta-shade-card';
+import type { LCTResult, CTAResult, CVaRResult, CSAResult } from '@/lib/calc-engine/types';
+import { calcCSA } from '@/lib/calc-engine/csa-assessment';
+import { CSARadarCard } from '@/components/dashboard/csa-radar-card';
+import { calcCVaR } from '@/lib/calc-engine/cvar-assessment';
+import { CVaRBreakdownCard } from '@/components/dashboard/cvar-breakdown-card';
+import { CVaRWaterfallChart } from '@/components/dashboard/cvar-waterfall-chart';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,11 +79,28 @@ export default function WizardPage() {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<FullCalculationResult | null>(null);
   const [selectedBenchmarkIds, setSelectedBenchmarkIds] = useState<Set<string>>(new Set());
+  const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
+  const [scenarioFamilies, setScenarioFamilies] = useState<ScenarioFamilyData[]>([]);
+  const [selectedScenarioIds, setSelectedScenarioIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchSectorData()
       .then(setSectors)
       .finally(() => setLoading(false));
+    // Also fetch scenario data
+    fetchScenarioData()
+      .then((families) => {
+        setScenarioFamilies(families);
+        // Pre-select default scenarios
+        const defaults = new Set<string>();
+        for (const f of families) {
+          for (const sc of f.scenarios) {
+            if (sc.isDefault) defaults.add(sc.id);
+          }
+        }
+        setSelectedScenarioIds(defaults);
+      })
+      .catch(() => {}); // silently ignore if scenarios not available
   }, []);
 
   const selectedSector = sectors.find((s) => s.id === store.sectorId);
@@ -215,6 +259,8 @@ export default function WizardPage() {
     if (next === 7) {
       runCalculation();
       store.markSubmitted();
+      // Celebration confetti
+      confetti({ particleCount: 80, spread: 60, origin: { y: 0.9 }, decay: 0.92, scalar: 0.8 });
     }
     store.setStep(next);
   };
@@ -237,6 +283,87 @@ export default function WizardPage() {
     }
   };
 
+  // Flatten all scenarios from families
+  const allScenarios = useMemo(
+    () => scenarioFamilies.flatMap((f) => f.scenarios),
+    [scenarioFamilies]
+  );
+
+  // Lazy scenario analysis — only computed when we have results + scenarios
+  const scenarioAnalysis = useMemo<ScenarioAnalysisResult | null>(() => {
+    if (!result || allScenarios.length === 0) return null;
+    const selected = allScenarios.filter((s) => selectedScenarioIds.has(s.id));
+    if (selected.length === 0) return null;
+    return calcScenarioAnalysis(result.periods, selected);
+  }, [result, allScenarios, selectedScenarioIds]);
+
+  const toggleScenario = (id: string) => {
+    setSelectedScenarioIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  // ITR assessment — lazy, only when results exist
+  const itrResult = useMemo<ITRResult | null>(() => {
+    if (!result) return null;
+    return calcITR(result.periods);
+  }, [result]);
+
+  // LCT assessment
+  const lctResult = useMemo<LCTResult | null>(() => {
+    if (!result) return null;
+    return calcLCT(result.periods, {
+      capexLowCarbonPercent: Number(store.companyFinancials.capexLowCarbonPercent ?? 0),
+      emissionTargetType: String(store.companyFinancials.emissionTargetType ?? 'none'),
+      hasBoardClimateOversight: Boolean(store.companyFinancials.hasBoardClimateOversight ?? false),
+      netZeroYear: Number(store.companyFinancials.netZeroYear ?? 0),
+    });
+  }, [result, store.companyFinancials]);
+
+  // CTA assessment
+  const ctaResult = useMemo<CTAResult | null>(() => {
+    if (!result) return null;
+    return calcCTA(result.periods, itrResult, {
+      capexLowCarbonPercent: Number(store.companyFinancials.capexLowCarbonPercent ?? 0),
+      revenueLowCarbonPercent: Number(store.companyFinancials.revenueLowCarbonPercent ?? 0),
+      emissionTargetType: String(store.companyFinancials.emissionTargetType ?? 'none'),
+      hasBoardClimateOversight: Boolean(store.companyFinancials.hasBoardClimateOversight ?? false),
+      netZeroYear: Number(store.companyFinancials.netZeroYear ?? 0),
+    });
+  }, [result, itrResult, store.companyFinancials]);
+
+  // CVaR assessment
+  const cvarResult = useMemo<CVaRResult | null>(() => {
+    if (!result || allScenarios.length === 0) return null;
+    const selected = allScenarios.filter((s) => selectedScenarioIds.has(s.id));
+    if (selected.length === 0) return null;
+    return calcCVaR(result.periods, selected, itrResult, {
+      enterpriseValue: Number(store.companyFinancials.enterpriseValue ?? 0) || undefined,
+      annualRevenue: Number(store.companyFinancials.annualRevenue ?? 0) || undefined,
+      wacc: Number(store.companyFinancials.wacc ?? 0) || undefined,
+      greenPremiumPercent: Number(store.companyFinancials.greenPremiumPercent ?? 0) || undefined,
+      revenueLowCarbonPercent: Number(store.companyFinancials.revenueLowCarbonPercent ?? 0) || undefined,
+    });
+  }, [result, allScenarios, selectedScenarioIds, itrResult, store.companyFinancials]);
+
+  // CSA assessment (depends on all others)
+  const csaResult = useMemo<CSAResult | null>(() => {
+    if (!result) return null;
+    return calcCSA(result.periods, itrResult, lctResult, ctaResult, cvarResult, {
+      emissionTargetType: String(store.companyFinancials.emissionTargetType ?? 'none'),
+      netZeroYear: Number(store.companyFinancials.netZeroYear ?? 0),
+      capexLowCarbonPercent: Number(store.companyFinancials.capexLowCarbonPercent ?? 0),
+      revenueLowCarbonPercent: Number(store.companyFinancials.revenueLowCarbonPercent ?? 0),
+      hasBoardClimateOversight: Boolean(store.companyFinancials.hasBoardClimateOversight ?? false),
+    });
+  }, [result, itrResult, lctResult, ctaResult, cvarResult, store.companyFinancials]);
+
+  // Company profile toggle
+  const [showCompanyProfile, setShowCompanyProfile] = useState(false);
+
   // Step titles for the main content header
   const stepTitles: Record<number, { title: string; subtitle: string }> = {
     1: { title: 'Setup', subtitle: 'Select sector and enter company details' },
@@ -250,19 +377,51 @@ export default function WizardPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading sector data...</p>
-        </div>
+      <div className="flex min-h-screen bg-background">
+        {/* Skeleton sidebar */}
+        <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-sidebar-border bg-sidebar p-5">
+          <div className="flex items-center gap-2.5 mb-6">
+            <Skeleton className="h-8 w-8 rounded-lg" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-28" />
+            </div>
+          </div>
+          <Skeleton className="h-3 w-32 mb-3" />
+          <div className="space-y-2">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full rounded-lg" />
+            ))}
+          </div>
+        </aside>
+        {/* Skeleton content */}
+        <main className="ml-64 flex-1 p-8">
+          <Skeleton className="h-6 w-48 mb-2" />
+          <Skeleton className="h-4 w-72 mb-8" />
+          <Skeleton className="h-64 w-full max-w-2xl rounded-xl" />
+        </main>
       </div>
     );
   }
 
   const currentStepInfo = stepTitles[store.currentStep];
 
+  const goNextWithTransition = () => { setTransitionDirection('forward'); goNext(); };
+  const goPrevWithTransition = () => { setTransitionDirection('backward'); goPrev(); };
+
   return (
     <div className="flex min-h-screen bg-background">
+      {/* Command Palette (Cmd+K) */}
+      <CommandPalette
+        currentStep={store.currentStep}
+        hasSubmitted={store.hasSubmitted}
+        onStepChange={(s) => {
+          setTransitionDirection(s > store.currentStep ? 'forward' : 'backward');
+          store.setStep(s);
+        }}
+        onReset={() => { store.reset(); setResult(null); }}
+      />
+
       {/* ══════════════ Sidebar ══════════════ */}
       <aside className="fixed inset-y-0 left-0 z-30 flex w-64 flex-col border-r border-sidebar-border bg-sidebar">
         {/* Logo */}
@@ -354,7 +513,14 @@ export default function WizardPage() {
 
         {/* Content area */}
         <div className="flex-1 px-8 py-6">
-          <div className={
+          <AnimatePresence initial={false} mode="wait">
+          <motion.div
+            key={store.currentStep}
+            initial={{ opacity: 0, x: transitionDirection === 'forward' ? 16 : -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: transitionDirection === 'forward' ? -16 : 16 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            className={
             store.currentStep === 1 || store.currentStep === 6
               ? 'mx-auto max-w-2xl'
               : store.currentStep <= 5
@@ -468,6 +634,132 @@ export default function WizardPage() {
                           ))}
                       </div>
                     )}
+
+                    {/* Company Profile (Optional) */}
+                    <div className="border-t border-border pt-4">
+                      <button
+                        type="button"
+                        onClick={() => setShowCompanyProfile(!showCompanyProfile)}
+                        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        <ChevronRight className={cn('h-4 w-4 transition-transform', showCompanyProfile && 'rotate-90')} />
+                        Company Profile
+                        <span className="text-[10px] text-muted-foreground/60">(Optional)</span>
+                      </button>
+
+                      {showCompanyProfile && (
+                        <div className="mt-4 space-y-4 pl-6">
+                          <p className="text-[11px] text-muted-foreground">
+                            Used for resilience assessments (ITR, CVaR). Defaults are auto-filled based on region.
+                          </p>
+
+                          <div>
+                            <label className="mb-1 block text-xs text-muted-foreground">Region</label>
+                            <Select
+                              value={store.companyRegion}
+                              onValueChange={(v) => {
+                                if (v) {
+                                  store.setCompanyRegion(v);
+                                  const defaults = getDefaults(v, store.base.totalProduction || 1);
+                                  store.setCompanyFinancials({
+                                    enterpriseValue: defaults.enterpriseValue ?? 0,
+                                    annualRevenue: defaults.annualRevenue ?? 0,
+                                    ebitdaMargin: defaults.ebitdaMargin,
+                                    wacc: defaults.wacc,
+                                    currentCarbonPrice: defaults.currentCarbonPrice,
+                                    netZeroYear: defaults.netZeroYear ?? 2050,
+                                    emissionTargetType: defaults.emissionTargetType,
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-9 w-48">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {REGIONS.map((r) => (
+                                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">Enterprise Value (USD M)</label>
+                              <Input
+                                type="number"
+                                value={String(store.companyFinancials.enterpriseValue ?? '')}
+                                onChange={(e) => store.setCompanyFinancial('enterpriseValue', Number(e.target.value))}
+                                placeholder="Auto-filled"
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">Annual Revenue (USD M)</label>
+                              <Input
+                                type="number"
+                                value={String(store.companyFinancials.annualRevenue ?? '')}
+                                onChange={(e) => store.setCompanyFinancial('annualRevenue', Number(e.target.value))}
+                                placeholder="Auto-filled"
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">EBITDA Margin (%)</label>
+                              <Input
+                                type="number"
+                                value={String(store.companyFinancials.ebitdaMargin ?? '')}
+                                onChange={(e) => store.setCompanyFinancial('ebitdaMargin', Number(e.target.value))}
+                                placeholder="Auto-filled"
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">Current Carbon Price (USD/tCO₂)</label>
+                              <Input
+                                type="number"
+                                value={String(store.companyFinancials.currentCarbonPrice ?? '')}
+                                onChange={(e) => store.setCompanyFinancial('currentCarbonPrice', Number(e.target.value))}
+                                placeholder="0"
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">Net Zero Target Year</label>
+                              <Input
+                                type="number"
+                                value={String(store.companyFinancials.netZeroYear ?? '')}
+                                onChange={(e) => store.setCompanyFinancial('netZeroYear', Number(e.target.value))}
+                                placeholder="2050"
+                                className="h-9"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-xs text-muted-foreground">Emission Target</label>
+                              <Select
+                                value={String(store.companyFinancials.emissionTargetType ?? 'none')}
+                                onValueChange={(v) => v && store.setCompanyFinancial('emissionTargetType', v)}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="internal">Internal</SelectItem>
+                                  <SelectItem value="public">Public</SelectItem>
+                                  <SelectItem value="science_based">Science-Based</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <p className="text-[10px] text-muted-foreground/60 italic">
+                            Values auto-filled from {REGIONS.find(r => r.value === store.companyRegion)?.label ?? 'Global'} industry defaults. Override any field as needed.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -712,7 +1004,9 @@ export default function WizardPage() {
                                   const raw = parseInt(value || '0', 10);
                                   const sliderValue = isNaN(raw) ? 0 : raw;
                                   if (sliderValue === 0) return null;
-                                  const reductionPct = (sliderValue / 100) * (lever.maxReduction ?? 0) * 100;
+                                  const maxRed = Number(lever.maxReduction) || 0;
+                                  const reductionPct = (sliderValue / 100) * maxRed * 100;
+                                  if (isNaN(reductionPct)) return null;
                                   return { leverName: lever.displayName, sliderValue, reductionPct };
                                 })
                                 .filter(Boolean) as { leverName: string; sliderValue: number; reductionPct: number }[];
@@ -828,6 +1122,25 @@ export default function WizardPage() {
                           </Badge>
                         )}
                       </TabsTrigger>
+                      <TabsTrigger value="scenarios">
+                        Scenario Analysis
+                        {scenarioAnalysis && (
+                          <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5">
+                            {selectedScenarioIds.size}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                      <TabsTrigger value="resilience">
+                        Resilience
+                        {itrResult && (
+                          <Badge
+                            className="ml-1.5 text-[10px] px-1.5 text-white"
+                            style={{ backgroundColor: itrResult.classificationColor }}
+                          >
+                            {itrResult.impliedTemperature.toFixed(1)}°C
+                          </Badge>
+                        )}
+                      </TabsTrigger>
                     </TabsList>
 
                     {/* Emissions Tab */}
@@ -905,6 +1218,191 @@ export default function WizardPage() {
                         )}
                       </div>
                     </TabsContent>
+
+                    {/* ── Scenario Analysis Tab ── */}
+                    <TabsContent value="scenarios">
+                      <div className="space-y-6">
+                        {/* Scenario Selector */}
+                        <Card>
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold">Select Scenarios</CardTitle>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                              Toggle climate scenarios to compare against your transition pathway
+                            </p>
+                          </CardHeader>
+                          <CardContent className="pt-0">
+                            <ScenarioSelector
+                              families={scenarioFamilies}
+                              selectedIds={selectedScenarioIds}
+                              onToggle={toggleScenario}
+                            />
+                          </CardContent>
+                        </Card>
+
+                        {/* KPI Summary Cards */}
+                        {scenarioAnalysis && (
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                            <Card>
+                              <CardContent className="pt-5 pb-4">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Scenarios Compared</p>
+                                <p className="mt-1 text-2xl font-bold tabular-nums">{selectedScenarioIds.size}</p>
+                                <p className="text-[10px] text-muted-foreground">of {allScenarios.length} available</p>
+                              </CardContent>
+                            </Card>
+                            <Card>
+                              <CardContent className="pt-5 pb-4">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Best Alignment</p>
+                                {(() => {
+                                  const aligned = scenarioAnalysis.gaps
+                                    .filter((g) => g.milestones.every((m) => m.alignmentStatus === 'aligned'));
+                                  const best = aligned.length > 0
+                                    ? allScenarios.find((s) => s.id === aligned[0].scenarioId)
+                                    : null;
+                                  return best ? (
+                                    <>
+                                      <p className="mt-1 text-2xl font-bold text-emerald-600">{best.shortName}</p>
+                                      <p className="text-[10px] text-muted-foreground">{best.temperatureOutcome}°C pathway</p>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="mt-1 text-2xl font-bold text-amber-600">None</p>
+                                      <p className="text-[10px] text-muted-foreground">no full alignment</p>
+                                    </>
+                                  );
+                                })()}
+                              </CardContent>
+                            </Card>
+                            <Card>
+                              <CardContent className="pt-5 pb-4">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Budget Remaining</p>
+                                <p className={cn(
+                                  'mt-1 text-2xl font-bold tabular-nums',
+                                  scenarioAnalysis.carbonBudget.remainingBudgetMt > 0 ? 'text-emerald-600' : 'text-red-600'
+                                )}>
+                                  {scenarioAnalysis.carbonBudget.remainingBudgetMt > 0
+                                    ? `${((scenarioAnalysis.carbonBudget.remainingBudgetMt / scenarioAnalysis.carbonBudget.fairShareBudgetMt) * 100).toFixed(0)}%`
+                                    : 'Exceeded'}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  {scenarioAnalysis.carbonBudget.remainingBudgetMt.toFixed(0)} Mt of {scenarioAnalysis.carbonBudget.fairShareBudgetMt.toFixed(0)} Mt
+                                </p>
+                              </CardContent>
+                            </Card>
+                            <Card>
+                              <CardContent className="pt-5 pb-4">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Max Carbon Cost</p>
+                                {(() => {
+                                  const maxCost = Math.max(...scenarioAnalysis.carbonCosts.map((c) => c.cumulativeCost), 0);
+                                  const maxSc = scenarioAnalysis.carbonCosts.find((c) => c.cumulativeCost === maxCost);
+                                  const scData = allScenarios.find((s) => s.id === maxSc?.scenarioId);
+                                  return (
+                                    <>
+                                      <p className="mt-1 text-2xl font-bold tabular-nums text-red-600">
+                                        ${maxCost.toFixed(0)}M
+                                      </p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        worst case ({scData?.shortName ?? 'N/A'})
+                                      </p>
+                                    </>
+                                  );
+                                })()}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+
+                        {/* Trajectory Overlay Chart */}
+                        {result && (
+                          <ScenarioTrajectoryChart
+                            trajectory={result.trajectory}
+                            scenarios={allScenarios}
+                            selectedScenarioIds={selectedScenarioIds}
+                          />
+                        )}
+
+                        {/* Gap Analysis Table */}
+                        {scenarioAnalysis && result && (
+                          <ScenarioGapTable
+                            gaps={scenarioAnalysis.gaps}
+                            scenarios={allScenarios}
+                            periods={result.periods}
+                          />
+                        )}
+
+                        {/* Carbon Budget + Cost Charts */}
+                        {scenarioAnalysis && (
+                          <div className="grid gap-6 lg:grid-cols-2">
+                            <CarbonBudgetChart budget={scenarioAnalysis.carbonBudget} />
+                            <CarbonCostChart
+                              costs={scenarioAnalysis.carbonCosts}
+                              scenarios={allScenarios}
+                              selectedIds={selectedScenarioIds}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+
+                    {/* ── Resilience Assessment Tab ── */}
+                    <TabsContent value="resilience">
+                      <div className="space-y-6">
+                        {/* Assessment Summary Strip */}
+                        <AssessmentSummary itr={itrResult} lct={lctResult} cta={ctaResult} cvar={cvarResult} csa={csaResult} />
+
+                        {/* ITR Gauge + Details */}
+                        {itrResult && (
+                          <div className="grid gap-6 lg:grid-cols-2">
+                            <Card className="overflow-hidden">
+                              <CardHeader className="pb-2">
+                                <CardTitle className="text-sm font-semibold">Implied Temperature Rise</CardTitle>
+                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                  TCRE-based warming alignment (IPCC AR6 / GFANZ methodology)
+                                </p>
+                              </CardHeader>
+                              <CardContent className="pt-0 flex items-center justify-center py-6">
+                                <ITRGauge itr={itrResult} />
+                              </CardContent>
+                            </Card>
+
+                            <ITRDetailsCard itr={itrResult} />
+                          </div>
+                        )}
+
+                        {/* LCT + CTA Cards */}
+                        {(lctResult || ctaResult) && (
+                          <div className="grid gap-6 lg:grid-cols-2">
+                            {lctResult && <LCTScoreCard lct={lctResult} />}
+                            {ctaResult && <CTAShadeCard cta={ctaResult} />}
+                          </div>
+                        )}
+
+                        {/* CVaR Breakdown + Waterfall */}
+                        {cvarResult && (
+                          <div className="grid gap-6 lg:grid-cols-2">
+                            <CVaRBreakdownCard cvar={cvarResult} />
+                            <CVaRWaterfallChart cvar={cvarResult} />
+                          </div>
+                        )}
+
+                        {/* CSA Radar */}
+                        {csaResult && (
+                          <CSARadarCard csa={csaResult} />
+                        )}
+
+                        {/* Sensitivity Analysis */}
+                        {itrResult && (
+                          <ITRSensitivityChart itr={itrResult} />
+                        )}
+
+                        {/* Disclaimer */}
+                        <div className="rounded-lg border border-border bg-muted/30 p-4 text-[11px] text-muted-foreground">
+                          <strong>Methodology Note:</strong> The Implied Temperature Rise (ITR) is calculated using the Transient Climate
+                          Response to Cumulative Emissions (TCRE) method as recommended by GFANZ and based on IPCC AR6 findings.
+                          This is an indicative metric and should not be used as the sole basis for investment decisions.
+                          Results depend on the accuracy of emission projections and production assumptions.
+                        </div>
+                      </div>
+                    </TabsContent>
                   </Tabs>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
@@ -925,7 +1423,8 @@ export default function WizardPage() {
                 </ul>
               </div>
             )}
-          </div>
+          </motion.div>
+          </AnimatePresence>
         </div>
 
         {/* Bottom navigation */}
@@ -934,7 +1433,7 @@ export default function WizardPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={goPrev}
+              onClick={goPrevWithTransition}
               disabled={store.currentStep === 1}
               className="gap-1.5"
             >
@@ -942,13 +1441,13 @@ export default function WizardPage() {
               Previous
             </Button>
             {store.currentStep < 6 && (
-              <Button size="sm" onClick={goNext} className="gap-1.5">
+              <Button size="sm" onClick={goNextWithTransition} className="gap-1.5">
                 Next
                 <ChevronRight className="h-4 w-4" />
               </Button>
             )}
             {store.currentStep === 6 && (
-              <Button size="sm" onClick={goNext} className="gap-1.5">
+              <Button size="sm" onClick={goNextWithTransition} className="gap-1.5">
                 <Sparkles className="h-4 w-4" />
                 {store.hasSubmitted ? 'Re-calculate' : 'Generate Dashboard'}
               </Button>

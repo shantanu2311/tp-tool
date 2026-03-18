@@ -162,6 +162,161 @@ export interface ScenarioInput {
   capexOverrides?: Record<string, CapexNumeric>; // methodId -> numeric CAPEX overrides
 }
 
+// ── Scenario Analysis Types (Phase 2) ──
+
+export interface ScenarioFamilyData {
+  id: string;
+  name: string; // 'IEA', 'NGFS'
+  source: string;
+  description?: string;
+  version?: string;
+  scenarios: ScenarioData[];
+}
+
+export interface ScenarioData {
+  id: string;
+  familyName: string;
+  name: string;
+  shortName: string;
+  temperatureOutcome: number;
+  riskCategory?: 'orderly' | 'disorderly' | 'hot_house';
+  description?: string;
+  isDefault: boolean;
+  dataPoints: { year: number; intensity: number }[];
+  carbonPrices: { year: number; priceUSD: number }[];
+}
+
+export interface ScenarioGapResult {
+  scenarioId: string;
+  scenarioName: string;
+  milestones: {
+    year: number;
+    companyIntensity: number;
+    scenarioIntensity: number;
+    gapAbsolute: number;
+    gapPercent: number;
+    alignmentStatus: 'aligned' | 'at_risk' | 'misaligned';
+  }[];
+}
+
+// ── Scenario Analysis Results ──
+
+export interface ScenarioAnalysisResult {
+  gaps: ScenarioGapResult[];
+  accelerationRates: AccelerationResult[];
+  carbonBudget: CarbonBudgetResult;
+  carbonCosts: CarbonCostResult[];
+}
+
+export interface AccelerationResult {
+  scenarioId: string;
+  scenarioName: string;
+  periods: {
+    fromYear: number;
+    toYear: number;
+    requiredAnnualRate: number;
+    currentRate: number;
+    gapToClose: number;
+  }[];
+}
+
+export interface CarbonBudgetResult {
+  fairShareBudgetMt: number;
+  cumulativeEmissionsMt: number;
+  remainingBudgetMt: number;
+  exhaustionYear: number | null;
+  yearlyData: {
+    year: number;
+    annualEmissions: number;
+    cumulative: number;
+    budget: number;
+  }[];
+}
+
+export interface CarbonCostResult {
+  scenarioId: string;
+  scenarioName: string;
+  annualCosts: {
+    year: number;
+    emissions: number;
+    pricePerTonne: number;
+    totalCost: number;
+  }[];
+  cumulativeCost: number;
+}
+
+// ── ITR / Resilience Assessment Results ──
+
+export interface ITRResult {
+  impliedTemperature: number;
+  classification: string;
+  classificationColor: string;
+  companyBudgetMt: number;
+  cumulativeEmissionsMt: number;
+  overshootMt: number;
+  yearlyBreakdown: { year: number; emissions: number; cumulative: number }[];
+  sensitivity: { rateChange: number; resultingTemp: number }[];
+}
+
+export interface LCTResult {
+  totalScore: number;
+  classification: string;
+  classificationColor: string;
+  categories: {
+    name: string;
+    score: number;
+    maxScore: number;
+    description: string;
+  }[];
+}
+
+export interface CTAResult {
+  shade: 'dark_green' | 'green' | 'light_green' | 'yellow' | 'orange' | 'red';
+  shadeLabel: string;
+  shadeColor: string;
+  weightedScore: number;
+  criteria: {
+    name: string;
+    weight: number;
+    score: number;
+    weightedContribution: number;
+    description: string;
+  }[];
+}
+
+export interface CSAResult {
+  totalScore: number;
+  classification: string;
+  classificationColor: string;
+  dimensions: {
+    name: string;
+    weight: number;
+    score: number;
+    weightedContribution: number;
+    description: string;
+  }[];
+}
+
+export interface CVaRResult {
+  totalCVaRPercent: number;
+  totalCVaRAbsolute: number;
+  policyRisk: {
+    npv: number;
+    annualCosts: { year: number; cost: number; discounted: number }[];
+  };
+  techOpportunity: {
+    npv: number;
+    annualBenefits: { year: number; benefit: number; discounted: number }[];
+  };
+  physicalRisk: {
+    estimatedDamage: number;
+    temperatureBasis: number;
+  };
+  enterpriseValue: number;
+  classification: string;
+  classificationColor: string;
+}
+
 // ── CAPEX Calculation Results ──
 
 /** CAPEX for a single method transition within a period */
