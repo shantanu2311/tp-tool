@@ -1327,7 +1327,7 @@ export default function WizardPage() {
                         )}
                       </TabsTrigger>
                       <TabsTrigger value="resilience">
-                        Resilience
+                        Climate Alignment
                         {itrResult && (
                           <Badge
                             className="ml-1.5 text-[10px] px-1.5 text-white"
@@ -1542,9 +1542,6 @@ export default function WizardPage() {
                     {/* ── Resilience Assessment Tab ── */}
                     <TabsContent value="resilience">
                       <div className="space-y-6">
-                        {/* Assessment Summary Strip */}
-                        <AssessmentSummary itr={itrResult} lct={lctResult} cta={ctaResult} cvar={cvarResult} csa={csaResult} />
-
                         {/* CTI Temperature Alignment Score (TAS) */}
                         {result && (
                           <TASDashboard
@@ -1553,47 +1550,12 @@ export default function WizardPage() {
                           />
                         )}
 
-                        {/* LCT + CTA Cards */}
-                        {(lctResult || ctaResult) && (
-                          <div className="grid gap-6 lg:grid-cols-2">
-                            {lctResult && <LCTScoreCard lct={lctResult} />}
-                            {ctaResult && <CTAShadeCard cta={ctaResult} />}
-                          </div>
-                        )}
-
-                        {/* CVaR Breakdown + Waterfall */}
-                        {cvarResult && (
-                          <div className="grid gap-6 lg:grid-cols-2">
-                            <CVaRBreakdownCard cvar={cvarResult} />
-                            <CVaRWaterfallChart cvar={cvarResult} />
-                          </div>
-                        )}
-
-                        {/* CSA Radar */}
-                        {csaResult && (
-                          <CSARadarCard csa={csaResult} />
-                        )}
-
-                        {/* Sensitivity Analysis */}
-                        {itrResult && (
-                          <ITRSensitivityChart itr={itrResult} />
-                        )}
-
-                        {/* Framework Diagnostics (3-tier) */}
-                        <FrameworkDiagnostics
-                          periods={result.periods}
-                          capexResult={capexResult}
-                          methodDataMap={mergedMethodDataMap}
-                          financials={store.companyFinancials}
-                          itrResult={itrResult}
-                        />
-
                         {/* Disclaimer */}
                         <div className="rounded-lg border border-border bg-muted/30 p-4 text-[11px] text-muted-foreground">
-                          <strong>Methodology Note:</strong> The Implied Temperature Rise (ITR) is calculated using the Transient Climate
-                          Response to Cumulative Emissions (TCRE) method as recommended by GFANZ and based on IPCC AR6 findings.
+                          <strong>CTI Methodology:</strong> The Temperature Alignment Score uses 3 independent methods
+                          (Budget Ratio, Cumulative Benchmark Divergence, Rate of Reduction) combined with Monte Carlo
+                          uncertainty quantification. Sources: IPCC AR6, SBTi Steel Guidance v1.0, IIGCC CBD (2024), GFANZ PAT.
                           This is an indicative metric and should not be used as the sole basis for investment decisions.
-                          Results depend on the accuracy of emission projections and production assumptions.
                         </div>
                       </div>
                     </TabsContent>
