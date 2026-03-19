@@ -11,6 +11,11 @@ import { calcLCT } from '@/lib/calc-engine/lct-assessment';
 import { calcCTA } from '@/lib/calc-engine/cta-assessment';
 import { calcCVaR } from '@/lib/calc-engine/cvar-assessment';
 import { calcCSA } from '@/lib/calc-engine/csa-assessment';
+import { calcSBTiAlignment } from '@/lib/calc-engine/assessment-sbti';
+import { calcSelfDecarbRate, calcGreenBrownRatio, calcLockedInEmissions, calcSectorPercentile } from '@/lib/calc-engine/assessment-diagnostics';
+import { calcCAPEXAlignment } from '@/lib/calc-engine/assessment-capex-alignment';
+import { calcManagementQuality } from '@/lib/calc-engine/assessment-tpi';
+import { calcCDPReadiness } from '@/lib/calc-engine/assessment-cdp';
 import type {
   ScenarioInput,
   PeriodInput,
@@ -245,6 +250,39 @@ export async function POST(req: Request) {
           dimensions: csa.dimensions.map((d) => ({ name: d.name, score: Number(d.score.toFixed(1)), weight: d.weight })),
         },
       },
+      // Framework diagnostics (Sprint 1)
+      frameworkDiagnostics: (() => {
+        const sbti = calcSBTiAlignment(result.periods);
+        const decarb = calcSelfDecarbRate(result.periods);
+        const greenBrown = calcGreenBrownRatio(result.periods, {
+          annualRevenue: Number(fin.annualRevenue ?? 500),
+          revenueLowCarbonPercent: Number(fin.revenueLowCarbonPercent ?? 5),
+        });
+        const lockedIn = calcLockedInEmissions(result.periods, methodDataMap, {
+          bfBofAssetLifetime: Number(fin.bfBofAssetLifetime ?? 20),
+        });
+        const percentile = calcSectorPercentile(result.periods);
+        const capexAlign = calcCAPEXAlignment(result.periods, result.capex ?? null, methodDataMap);
+
+        return {
+          sbti: { classification: sbti.overallClassification, nearTerm: sbti.nearTermAligned, longTerm: sbti.longTermAligned, annualRate: sbti.annualReductionRate, required: sbti.requiredRate, details: sbti.details },
+          selfDecarb: { rate: decarb.annualRate, passes7pct: decarb.passes7Percent, classification: decarb.classification },
+          greenBrown: { ratio: greenBrown.ratio, passes4x: greenBrown.passes4x, classification: greenBrown.classification },
+          lockedIn: { mt: lockedIn.lockedInMt, bfBofShareLT: lockedIn.bfBofShareLT, classification: lockedIn.classification },
+          sectorPercentile: { percentile: percentile.percentile, vsGlobal: percentile.intensityVsGlobal, classification: percentile.classification },
+          capexAlignment: { score: capexAlign.score, alignedPct: capexAlign.alignedCapexPercent, classification: capexAlign.classification },
+
+          // Sprint 2: Investor Readiness
+          tpiLevel: (() => {
+            const tpi = calcManagementQuality(fin);
+            return { level: tpi.level, classification: tpi.classification, nextNeeded: tpi.nextLevelCriteria };
+          })(),
+          cdpReadiness: (() => {
+            const cdp = calcCDPReadiness(result.periods, fin, itr);
+            return { level: cdp.level, label: cdp.levelLabel, score: cdp.score, modules: cdp.modules.map(m => m.name + '=' + m.level), recommendations: cdp.recommendations };
+          })(),
+        };
+      })(),
       waterfallTransitions: result.waterfallTransitions.length,
       trajectoryPoints: result.trajectory.length,
     };
