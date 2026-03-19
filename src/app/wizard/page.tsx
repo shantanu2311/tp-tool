@@ -59,6 +59,7 @@ import { calcCVaR } from '@/lib/calc-engine/cvar-assessment';
 import { CVaRBreakdownCard } from '@/components/dashboard/cvar-breakdown-card';
 import { CVaRWaterfallChart } from '@/components/dashboard/cvar-waterfall-chart';
 import { FrameworkDiagnostics } from '@/components/dashboard/framework-diagnostics';
+import { TASDashboard } from '@/components/dashboard/tas-dashboard';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1544,23 +1545,12 @@ export default function WizardPage() {
                         {/* Assessment Summary Strip */}
                         <AssessmentSummary itr={itrResult} lct={lctResult} cta={ctaResult} cvar={cvarResult} csa={csaResult} />
 
-                        {/* ITR Gauge + Details */}
-                        {itrResult && (
-                          <div className="grid gap-6 lg:grid-cols-2">
-                            <Card className="overflow-hidden">
-                              <CardHeader className="pb-2">
-                                <CardTitle className="text-sm font-semibold">Implied Temperature Rise</CardTitle>
-                                <p className="mt-0.5 text-[11px] text-muted-foreground">
-                                  TCRE-based warming alignment (IPCC AR6 / GFANZ methodology)
-                                </p>
-                              </CardHeader>
-                              <CardContent className="pt-0 flex items-center justify-center py-6">
-                                <ITRGauge itr={itrResult} />
-                              </CardContent>
-                            </Card>
-
-                            <ITRDetailsCard itr={itrResult} />
-                          </div>
+                        {/* CTI Temperature Alignment Score (TAS) */}
+                        {result && (
+                          <TASDashboard
+                            periods={result.periods}
+                            scenarios={allScenarios}
+                          />
                         )}
 
                         {/* LCT + CTA Cards */}
