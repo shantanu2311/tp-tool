@@ -22,8 +22,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { CommandPalette } from '@/components/command-palette';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TEMPLATES, resolveTemplate } from '@/lib/templates';
 import { Stepper } from '@/components/wizard/stepper';
 import { PeriodInputTable } from '@/components/wizard/period-input-table';
+import { LivePreviewCard } from '@/components/wizard/live-preview-card';
 import { KPICards } from '@/components/dashboard/kpi-cards';
 import { LeverWaterfallChart } from '@/components/dashboard/lever-waterfall-chart';
 import { IntensityTrajectoryChart } from '@/components/dashboard/intensity-trajectory-chart';
@@ -63,6 +65,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { useTheme } from 'next-themes';
 import {
   Leaf,
   RotateCcw,
@@ -71,10 +74,13 @@ import {
   Sparkles,
   ArrowRight,
   AlertTriangle,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 export default function WizardPage() {
   const store = useWizardStore();
+  const { setTheme, theme } = useTheme();
   const [sectors, setSectors] = useState<SectorData[]>([]);
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<FullCalculationResult | null>(null);
@@ -455,7 +461,17 @@ export default function WizardPage() {
         </div>
 
         {/* Sidebar footer */}
-        <div className="border-t border-sidebar-border p-4">
+        <div className="border-t border-sidebar-border p-4 space-y-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          >
+            <Sun className="h-3.5 w-3.5 dark:hidden" />
+            <Moon className="hidden h-3.5 w-3.5 dark:block" />
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -506,6 +522,24 @@ export default function WizardPage() {
                     </Badge>
                   </>
                 )}
+                {result && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={async () => {
+                      const { exportDashboardPDF } = await import('@/lib/pdf-export');
+                      await exportDashboardPDF({
+                        companyName: store.companyName || 'Company',
+                        sectorName: selectedSector?.name ?? 'Steel',
+                        baseYear: store.base.year,
+                      });
+                    }}
+                  >
+                    <ArrowRight className="h-3.5 w-3.5 -rotate-45" />
+                    Export PDF
+                  </Button>
+                )}
               </div>
             </div>
           </header>
@@ -532,6 +566,50 @@ export default function WizardPage() {
               <Card>
                 <CardContent className="pt-6">
                   <div className="space-y-6">
+                    {/* Quick-start templates */}
+                    <div>
+                      <label className="mb-2 block text-sm font-medium">Quick Start</label>
+                      <div className="grid grid-cols-5 gap-2">
+                        {TEMPLATES.map((t) => (
+                          <button
+                            key={t.id}
+                            className="group rounded-lg border border-border p-2.5 text-left transition-all hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm"
+                            onClick={() => {
+                              if (t.id === 'blank') {
+                                store.reset();
+                                setResult(null);
+                                // Re-select first sector
+                                if (sectors.length > 0) store.setSectorId(sectors[0].id);
+                                return;
+                              }
+                              // Select first sector
+                              if (sectors.length > 0 && !store.sectorId) {
+                                store.setSectorId(sectors[0].id);
+                              }
+                              const sector = sectors.find((s) => s.id === (store.sectorId || sectors[0]?.id));
+                              if (!sector) return;
+                              const resolved = resolveTemplate(t, sector);
+                              store.setCompanyName(t.companyName);
+                              store.setCompanyRegion(t.region);
+                              for (const key of ['base', 'shortTerm', 'mediumTerm', 'longTerm'] as const) {
+                                store.setPeriod(key, {
+                                  year: resolved[key].year,
+                                  totalProduction: resolved[key].totalProduction,
+                                });
+                                store.setMethodsForPeriod(key, resolved[key].methods);
+                              }
+                            }}
+                          >
+                            <div className="mb-1 text-lg">{t.icon}</div>
+                            <div className="text-xs font-medium leading-tight">{t.name}</div>
+                            <div className="mt-0.5 text-[10px] text-muted-foreground leading-tight">{t.description}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <hr className="border-border" />
+
                     <div>
                       <label className="mb-1.5 block text-sm font-medium">Industry Sector</label>
                       <Select value={store.sectorId} onValueChange={(v) => store.setSectorId(v ?? '')}>
@@ -1111,7 +1189,7 @@ export default function WizardPage() {
                 )}
 
                 {result ? (
-                  <Tabs defaultValue="emissions">
+                  <Tabs defaultValue="emissions" data-dashboard-export>
                     <TabsList>
                       <TabsTrigger value="emissions">Emissions Analysis</TabsTrigger>
                       <TabsTrigger value="capex">
@@ -1405,8 +1483,69 @@ export default function WizardPage() {
                     </TabsContent>
                   </Tabs>
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                    <p>No results available. Complete the wizard and generate the dashboard.</p>
+                  <div className="relative overflow-hidden rounded-xl border border-dashed border-border/60">
+                    {/* Blurred preview placeholder */}
+                    <div className="pointer-events-none select-none blur-[6px] opacity-40 p-6 space-y-4">
+                      <div className="grid grid-cols-4 gap-4">
+                        {[1,2,3,4].map((i) => (
+                          <div key={i} className="rounded-lg border bg-muted/50 p-4 h-24" />
+                        ))}
+                      </div>
+                      <div className="rounded-lg border bg-muted/50 h-64" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="rounded-lg border bg-muted/50 h-48" />
+                        <div className="rounded-lg border bg-muted/50 h-48" />
+                      </div>
+                    </div>
+                    {/* Overlay CTA */}
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/60 backdrop-blur-[1px]">
+                      <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                          <Sparkles className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-foreground">Dashboard Preview</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Complete the wizard steps to see your transition pathway analysis with emissions trajectory, waterfall charts, and benchmark comparison.
+                          </p>
+                        </div>
+                        {/* Progress indicator */}
+                        <div className="flex items-center gap-1.5">
+                          {[1,2,3,4,5,6].map((s) => (
+                            <div key={s} className={`h-1.5 w-8 rounded-full ${s <= store.currentStep ? 'bg-primary' : 'bg-muted'}`} />
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              // Load Indian Integrated template and generate
+                              const t = TEMPLATES.find((t) => t.id === 'indian-integrated');
+                              if (!t || !sectors.length) return;
+                              if (!store.sectorId) store.setSectorId(sectors[0].id);
+                              const sector = sectors.find((s) => s.id === (store.sectorId || sectors[0]?.id));
+                              if (!sector) return;
+                              const resolved = resolveTemplate(t, sector);
+                              store.setCompanyName(t.companyName);
+                              store.setCompanyRegion(t.region);
+                              for (const key of ['base', 'shortTerm', 'mediumTerm', 'longTerm'] as const) {
+                                store.setPeriod(key, { year: resolved[key].year, totalProduction: resolved[key].totalProduction });
+                                store.setMethodsForPeriod(key, resolved[key].methods);
+                              }
+                              runCalculation();
+                              store.markSubmitted();
+                              confetti({ particleCount: 80, spread: 60, origin: { y: 0.9 }, decay: 0.92, scalar: 0.8 });
+                            }}
+                          >
+                            Try Sample Analysis
+                          </Button>
+                          <Button size="sm" onClick={() => store.setStep(1)}>
+                            Start Building
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1426,6 +1565,29 @@ export default function WizardPage() {
           </motion.div>
           </AnimatePresence>
         </div>
+
+        {/* Live Preview Card (Steps 2-5) */}
+        {store.currentStep >= 2 && store.currentStep <= 5 && selectedSector && (() => {
+          const periodKeys = ['base', 'shortTerm', 'mediumTerm', 'longTerm'] as const;
+          const periodLabels = ['Base Year', 'Short Term', 'Medium Term', 'Long Term'];
+          const currentPeriodKey = periodKeys[store.currentStep - 2];
+          const currentPeriod = store[currentPeriodKey];
+          // Compute base intensity from base period methods
+          const baseIntensity = store.base.methods.reduce((sum, m) => {
+            const md = allMethods.find((d) => d.id === m.methodId);
+            if (!md) return sum;
+            return sum + md.baseCO2 * m.share;
+          }, 0);
+          return (
+            <LivePreviewCard
+              periodLabel={periodLabels[store.currentStep - 2]}
+              methods={currentPeriod.methods}
+              availableMethods={allMethods}
+              leverDefs={allLevers}
+              baseIntensity={baseIntensity}
+            />
+          );
+        })()}
 
         {/* Bottom navigation */}
         <footer className="sticky bottom-0 border-t border-border bg-background/80 backdrop-blur-sm">

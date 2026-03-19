@@ -12,7 +12,8 @@ import { calcFinalIntensity } from '@/lib/calc-engine/method-intensity';
 import { getSelectedFactor } from '@/lib/calc-engine/lever-factors';
 import { CustomMethodDialog } from './custom-method-dialog';
 import { CustomLeverDialog } from './custom-lever-dialog';
-import { Plus, Trash2, CheckCircle, ChevronDown, ArrowRight, Factory, Wrench, Gauge, Pencil } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Plus, Trash2, CheckCircle, ChevronDown, ArrowRight, Factory, Wrench, Gauge, Pencil, Info } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════════════════
    Props
@@ -486,6 +487,26 @@ function MethodCard({
               {methodData.description}
             </p>
           )}
+
+          {/* References & Assumptions tooltip */}
+          {(methodData.references || methodData.baselineAssumptions) && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger className="inline-flex items-center gap-1 text-xs text-primary/60 hover:text-primary transition-colors cursor-help">
+                  <Info className="h-3 w-3" />
+                  <span>Assumptions & References</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-sm">
+                  {methodData.baselineAssumptions && (
+                    <div className="mb-1"><strong>Assumptions:</strong> {methodData.baselineAssumptions}</div>
+                  )}
+                  {methodData.references && (
+                    <div><strong>References:</strong> {methodData.references}</div>
+                  )}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       )}
 
@@ -561,6 +582,19 @@ function MethodCard({
                       <label className="text-sm font-medium text-foreground flex-1">
                         {lever.displayName}
                       </label>
+                      {(lever.description || lever.assumptions) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger className="text-muted-foreground/50 hover:text-primary transition-colors cursor-help">
+                              <Info className="h-3 w-3" />
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="max-w-xs">
+                              {lever.description && <div className="mb-1">{lever.description}</div>}
+                              {lever.assumptions && <div className="text-muted-foreground"><strong>Assumptions:</strong> {lever.assumptions}</div>}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                       {isCustomLever && (
                         <Badge variant="outline" className="text-[10px] px-1 py-0">Custom</Badge>
                       )}

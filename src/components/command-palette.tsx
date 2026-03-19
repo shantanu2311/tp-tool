@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
 import { Command } from 'cmdk';
 import {
   Factory,
@@ -34,6 +35,7 @@ const STEP_ITEMS = [
 
 export function CommandPalette({ currentStep, hasSubmitted, onStepChange, onReset }: CommandPaletteProps) {
   const [open, setOpen] = useState(false);
+  const { setTheme, theme } = useTheme();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -54,7 +56,7 @@ export function CommandPalette({ currentStep, hasSubmitted, onStepChange, onRese
   }
 
   function toggleDarkMode() {
-    document.documentElement.classList.toggle('dark');
+    setTheme(theme === 'dark' ? 'light' : 'dark');
     setOpen(false);
   }
 

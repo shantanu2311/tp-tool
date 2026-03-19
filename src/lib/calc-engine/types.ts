@@ -256,6 +256,10 @@ export interface ITRResult {
   overshootMt: number;
   yearlyBreakdown: { year: number; emissions: number; cumulative: number }[];
   sensitivity: { rateChange: number; resultingTemp: number }[];
+  /** Explains why ITR may differ from benchmark alignment */
+  intensityNote?: string;
+  /** Production growth factor (LT/Base production ratio) */
+  productionGrowthFactor?: number;
 }
 
 export interface LCTResult {

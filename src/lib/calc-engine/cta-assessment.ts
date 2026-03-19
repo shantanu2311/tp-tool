@@ -133,7 +133,25 @@ export function calcCTA(
   else { govScore = 5; govDesc = 'No climate governance structures'; }
   criteria.push({ name: 'Governance & Accountability', weight: 0.10, score: govScore, weightedContribution: govScore * 0.10, description: govDesc });
 
-  const weightedScore = Math.round(criteria.reduce((sum, c) => sum + c.weightedContribution, 0) * 100) / 100;
+  let weightedScore = Math.round(criteria.reduce((sum, c) => sum + c.weightedContribution, 0) * 100) / 100;
+
+  // ── Lock-in Penalty ──
+  // If the long-term plan still relies heavily on conventional BF-BOF (fossil lock-in),
+  // cap the shade at Light Green maximum regardless of score (CICERO principle).
+  const ltPeriod = sorted[sorted.length - 1];
+  if (ltPeriod && ltPeriod.methods) {
+    const bofShare = ltPeriod.methods
+      .filter((m) => m.methodName.includes('Blast Furnace') || m.methodName.includes('BOF'))
+      .reduce((s, m) => s + m.share, 0);
+    if (bofShare > 0.4) {
+      // >40% BF-BOF in long term = significant fossil lock-in
+      weightedScore = Math.min(weightedScore, 54); // caps at Yellow
+    } else if (bofShare > 0.2) {
+      // 20-40% BF-BOF = moderate lock-in
+      weightedScore = Math.min(weightedScore, 69); // caps at Light Green
+    }
+  }
+
   const cls = classifyShade(weightedScore);
 
   return {

@@ -15,7 +15,7 @@ import type {
   CarbonCostResult,
 } from './types';
 import {
-  GLOBAL_REMAINING_CARBON_BUDGET_GT,
+  getRemainingBudgetGt,
   STEEL_SECTOR_EMISSIONS_SHARE,
 } from './constants';
 
@@ -187,7 +187,7 @@ export function calcCarbonBudget(periods: PeriodResult[]): CarbonBudgetResult {
   const companyShareOfGlobal = companyProductionMt / globalProductionMt;
 
   const fairShareBudgetMt =
-    GLOBAL_REMAINING_CARBON_BUDGET_GT * 1000 * // Convert Gt to Mt
+    getRemainingBudgetGt(baseYear) * 1000 * // Convert Gt to Mt, time-adjusted
     STEEL_SECTOR_EMISSIONS_SHARE *
     companyShareOfGlobal;
 

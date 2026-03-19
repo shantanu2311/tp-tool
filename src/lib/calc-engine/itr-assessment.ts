@@ -12,10 +12,9 @@
 
 import type { PeriodResult, ITRResult } from './types';
 import {
-  GLOBAL_REMAINING_CARBON_BUDGET_GT,
+  getRemainingBudgetGt,
   STEEL_SECTOR_EMISSIONS_SHARE,
   GLOBAL_STEEL_PRODUCTION_GT,
-  TCRE_FACTOR,
 } from './constants';
 
 // ── Helpers ──
@@ -76,11 +75,13 @@ export function calcITR(periods: PeriodResult[]): ITRResult {
   const baseYear = sorted[0].year;
   const endYear = Math.max(sorted[sorted.length - 1].year, 2050);
 
-  // Company's fair-share carbon budget
-  const companyProductionMt = sorted[0].totalProduction; // MTPA
+  // Company's fair-share carbon budget (time-adjusted, with interpolated production share)
   const globalProductionMt = GLOBAL_STEEL_PRODUCTION_GT * 1000; // Gt → Mt
-  const companyShare = companyProductionMt / globalProductionMt;
-  const companyBudgetMt = GLOBAL_REMAINING_CARBON_BUDGET_GT * 1000 * STEEL_SECTOR_EMISSIONS_SHARE * companyShare;
+  // Use average production across all periods for a fairer share allocation
+  const avgProduction = sorted.reduce((s, p) => s + p.totalProduction, 0) / sorted.length;
+  const companyShare = avgProduction / globalProductionMt;
+  const remainingBudgetGt = getRemainingBudgetGt(baseYear);
+  const companyBudgetMt = remainingBudgetGt * 1000 * STEEL_SECTOR_EMISSIONS_SHARE * companyShare;
 
   // Calculate yearly emissions and cumulative
   const yearlyBreakdown: ITRResult['yearlyBreakdown'] = [];
@@ -100,14 +101,44 @@ export function calcITR(periods: PeriodResult[]): ITRResult {
   }
 
   // Overshoot and implied temperature
+  // Use budget ratio method: ITR scales based on how much the company
+  // overshoots its fair-share carbon budget. If cumulative = budget, ITR = 1.5°C.
+  // If cumulative = 2x budget, the company would need 2x the global budget,
+  // implying ~3.0°C world. The ratio maps linearly: ITR = 1.5 × (cumulative/budget).
+  // This gives realistic temperature readings at company level.
   const overshootMt = cumulative - companyBudgetMt;
-  const overshootGt = overshootMt / 1000; // Convert Mt → Gt for TCRE
-  const impliedTemperature = Math.round((1.5 + overshootGt * TCRE_FACTOR) * 100) / 100;
+  const budgetRatio = companyBudgetMt > 0 ? cumulative / companyBudgetMt : 999;
+  // Map budget ratio to temperature:
+  // ratio 1.0 → 1.5°C, ratio 2.0 → 3.0°C, ratio 3.0 → 4.5°C
+  // Formula: ITR = 1.5 × budgetRatio, clamped to [1.0, 6.0]
+  const rawTemp = 1.5 * budgetRatio;
+  const impliedTemperature = Math.round(Math.min(6.0, Math.max(1.0, rawTemp)) * 100) / 100;
 
   const cls = classifyTemperature(impliedTemperature);
 
   // Sensitivity analysis: what if annual reduction changes?
   const sensitivity = calcITRSensitivity(periods, companyBudgetMt);
+
+  // Production growth factor and explanatory note
+  const ltProduction = sorted[sorted.length - 1].totalProduction;
+  const baseProduction = sorted[0].totalProduction;
+  const productionGrowthFactor = baseProduction > 0
+    ? Math.round((ltProduction / baseProduction) * 100) / 100
+    : 1;
+
+  // Compute intensity-based reduction for context
+  const baseIntensity = sorted[0].companyIntensity;
+  const ltIntensity = sorted[sorted.length - 1].companyIntensity;
+  const intensityReduction = baseIntensity > 0
+    ? Math.round(((baseIntensity - ltIntensity) / baseIntensity) * 1000) / 10
+    : 0;
+
+  let intensityNote: string | undefined;
+  if (productionGrowthFactor > 1.2 && impliedTemperature > 2.5 && intensityReduction > 50) {
+    intensityNote = `Intensity drops ${intensityReduction}% but production grows ${Math.round((productionGrowthFactor - 1) * 100)}%, increasing absolute cumulative emissions. Benchmark alignment (intensity-based) may show a more favorable picture than ITR (absolute emissions-based).`;
+  } else if (impliedTemperature <= 2.0 && intensityReduction < 30) {
+    intensityNote = `Low ITR achieved primarily through small production scale rather than deep decarbonization.`;
+  }
 
   return {
     impliedTemperature,
@@ -118,6 +149,8 @@ export function calcITR(periods: PeriodResult[]): ITRResult {
     overshootMt: Math.round(overshootMt * 100) / 100,
     yearlyBreakdown,
     sensitivity,
+    intensityNote,
+    productionGrowthFactor,
   };
 }
 
@@ -155,8 +188,8 @@ function calcITRSensitivity(
       cumulative += adjustedIntensity * production;
     }
 
-    const overshootGt = (cumulative - companyBudgetMt) / 1000;
-    const temp = Math.round((1.5 + overshootGt * TCRE_FACTOR) * 100) / 100;
+    const budgetR = companyBudgetMt > 0 ? cumulative / companyBudgetMt : 999;
+    const temp = Math.round(Math.min(6.0, Math.max(1.0, 1.5 * budgetR)) * 100) / 100;
 
     results.push({
       rateChange: Math.round(additionalRate * 10000) / 100, // as percentage (0-10%)
