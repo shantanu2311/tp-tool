@@ -833,6 +833,122 @@ export default function WizardPage() {
                             </div>
                           </div>
 
+                          {/* ── Additional Financial Inputs ── */}
+                          <div className="border-t border-border pt-3 mt-3">
+                            <p className="text-xs font-medium text-muted-foreground mb-3">Financial Alignment</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Low-Carbon CAPEX (%)</label>
+                                <Input type="number" min={0} max={100}
+                                  value={String(store.companyFinancials.capexLowCarbonPercent ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('capexLowCarbonPercent', Number(e.target.value))}
+                                  placeholder="5" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Low-Carbon Revenue (%)</label>
+                                <Input type="number" min={0} max={100}
+                                  value={String(store.companyFinancials.revenueLowCarbonPercent ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('revenueLowCarbonPercent', Number(e.target.value))}
+                                  placeholder="5" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Internal Carbon Price (USD/tCO₂)</label>
+                                <Input type="number" min={0}
+                                  value={String(store.companyFinancials.internalCarbonPrice ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('internalCarbonPrice', Number(e.target.value))}
+                                  placeholder="0" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Green R&D (% of total R&D)</label>
+                                <Input type="number" min={0} max={100}
+                                  value={String(store.companyFinancials.rdLowCarbonPercent ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('rdLowCarbonPercent', Number(e.target.value))}
+                                  placeholder="5" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">BF-BOF Asset Lifetime (years)</label>
+                                <Input type="number" min={5} max={50}
+                                  value={String(store.companyFinancials.bfBofAssetLifetime ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('bfBofAssetLifetime', Number(e.target.value))}
+                                  placeholder="20" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">WACC (%)</label>
+                                <Input type="number" min={0} max={30}
+                                  value={String(store.companyFinancials.wacc ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('wacc', Number(e.target.value))}
+                                  placeholder="10" className="h-9" />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* ── Governance & Transition Planning ── */}
+                          <div className="border-t border-border pt-3 mt-3">
+                            <p className="text-xs font-medium text-muted-foreground mb-3">Governance & Transition Planning</p>
+                            <p className="text-[10px] text-muted-foreground mb-3">These inputs feed into TPI Management Quality, CDP Readiness, and CA100+ benchmark assessments.</p>
+                            <div className="space-y-2">
+                              {[
+                                { key: 'hasBoardClimateOversight', label: 'Board-level climate oversight', desc: 'Board has oversight of climate-related risks and opportunities' },
+                                { key: 'executiveClimateComp', label: 'Executive compensation linked to climate', desc: 'Executive remuneration is tied to climate performance targets' },
+                                { key: 'externalVerification', label: 'External verification of emissions', desc: 'Scope 1+2 emissions data is externally verified/assured' },
+                                { key: 'physicalRiskAssessed', label: 'Physical climate risk assessed', desc: 'Company has assessed physical climate risk to its assets' },
+                                { key: 'supplierEngagement', label: 'Supplier engagement on climate', desc: 'Engages suppliers on climate emissions reduction' },
+                                { key: 'policyEngagementAligned', label: 'Policy engagement Paris-aligned', desc: 'Climate policy engagement aligned with Paris Agreement' },
+                                { key: 'justTransitionPlan', label: 'Just transition plan published', desc: 'Published plan addressing workforce impacts of the transition' },
+                              ].map((item) => (
+                                <label key={item.key} className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/30 transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(store.companyFinancials[item.key])}
+                                    onChange={(e) => store.setCompanyFinancial(item.key, e.target.checked)}
+                                    className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
+                                  />
+                                  <div>
+                                    <span className="text-sm font-medium">{item.label}</span>
+                                    <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+
+                            {/* Interim Target */}
+                            <div className="grid grid-cols-2 gap-4 mt-3">
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Interim Target Year</label>
+                                <Input type="number"
+                                  value={String(store.companyFinancials.interimTargetYear ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('interimTargetYear', Number(e.target.value))}
+                                  placeholder="2030" className="h-9" />
+                              </div>
+                              <div>
+                                <label className="mb-1 block text-xs text-muted-foreground">Interim Reduction Target (%)</label>
+                                <Input type="number" min={0} max={100}
+                                  value={String(store.companyFinancials.interimTargetReduction ?? '')}
+                                  onChange={(e) => store.setCompanyFinancial('interimTargetReduction', Number(e.target.value))}
+                                  placeholder="25" className="h-9" />
+                              </div>
+                            </div>
+
+                            {/* Controversy */}
+                            <div className="mt-3">
+                              <label className="mb-1 block text-xs text-muted-foreground">Environmental Controversies (past 3 years)</label>
+                              <Select
+                                value={String(store.companyFinancials.controversySeverity ?? 'none')}
+                                onValueChange={(v) => v && store.setCompanyFinancial('controversySeverity', v)}
+                              >
+                                <SelectTrigger className="h-9 w-48">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">None</SelectItem>
+                                  <SelectItem value="minor">Minor</SelectItem>
+                                  <SelectItem value="major">Major</SelectItem>
+                                  <SelectItem value="severe">Severe</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
                           <p className="text-[10px] text-muted-foreground/60 italic">
                             Values auto-filled from {REGIONS.find(r => r.value === store.companyRegion)?.label ?? 'Global'} industry defaults. Override any field as needed.
                           </p>
