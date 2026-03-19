@@ -16,6 +16,7 @@ import { calcSelfDecarbRate, calcGreenBrownRatio, calcLockedInEmissions, calcSec
 import { calcCAPEXAlignment } from '@/lib/calc-engine/assessment-capex-alignment';
 import { calcManagementQuality } from '@/lib/calc-engine/assessment-tpi';
 import { calcCDPReadiness } from '@/lib/calc-engine/assessment-cdp';
+import { calcTAS } from '@/lib/calc-engine/cti-temperature';
 import type {
   ScenarioInput,
   PeriodInput,
@@ -250,6 +251,29 @@ export async function POST(req: Request) {
           dimensions: csa.dimensions.map((d) => ({ name: d.name, score: Number(d.score.toFixed(1)), weight: d.weight })),
         },
       },
+      // CTI Temperature Alignment Score (deep multi-method)
+      tas: (() => {
+        const tasResult = calcTAS(result.periods, allScenarios);
+        return {
+          combined: tasResult.temperature,
+          classification: tasResult.classification,
+          methods: {
+            budgetRatio: tasResult.methods.budgetRatio.temperature,
+            benchmarkDivergence: tasResult.methods.benchmarkDivergence.temperature,
+            rateOfReduction: tasResult.methods.rateOfReduction.temperature,
+          },
+          uncertainty: {
+            p10: tasResult.uncertainty.p10,
+            median: tasResult.uncertainty.median,
+            p90: tasResult.uncertainty.p90,
+            confidence: tasResult.uncertainty.confidence,
+          },
+          annualRate: tasResult.methods.rateOfReduction.annualRate,
+          closestScenario: tasResult.methods.benchmarkDivergence.closestScenario,
+          note: tasResult.intensityNote,
+        };
+      })(),
+
       // Framework diagnostics (Sprint 1)
       frameworkDiagnostics: (() => {
         const sbti = calcSBTiAlignment(result.periods);

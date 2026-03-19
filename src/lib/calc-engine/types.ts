@@ -262,6 +262,77 @@ export interface ITRResult {
   productionGrowthFactor?: number;
 }
 
+// ── CTI Temperature Alignment Score (TAS) ──
+
+export interface TASMethodResult {
+  temperature: number;
+  details: string;
+}
+
+export interface TASResult {
+  /** Combined temperature from 3 methods (weighted average) */
+  temperature: number;
+  classification: string;
+  classificationColor: string;
+
+  /** Three independent calculation methods */
+  methods: {
+    budgetRatio: TASMethodResult & {
+      budgetMt: number;
+      cumulativeMt: number;
+      overshootMt: number;
+      annualBudgetAllocation: number[];
+    };
+    benchmarkDivergence: TASMethodResult & {
+      closestScenario: string;
+      divergenceByScenario: { scenario: string; temperature: number; divergenceArea: number }[];
+    };
+    rateOfReduction: TASMethodResult & {
+      annualRate: number;
+      comparedTo: string;
+    };
+  };
+
+  /** Monte Carlo uncertainty quantification */
+  uncertainty: {
+    median: number;
+    p10: number;
+    p90: number;
+    confidence: string;
+    distribution: { tempBucket: number; count: number }[];
+    iterations: number;
+  };
+
+  /** Enhanced yearly breakdown */
+  yearlyBreakdown: {
+    year: number;
+    emissions: number;
+    cumulative: number;
+    budgetRemaining: number;
+    overshoot: number;
+    intensity: number;
+    production: number;
+  }[];
+
+  /** Multi-dimensional sensitivity analysis */
+  sensitivity: {
+    intensity: { additionalRate: number; temperature: number }[];
+    production: { growthFactor: number; temperature: number }[];
+    budget: { budgetGt: number; temperature: number }[];
+  };
+
+  /** Context */
+  intensityNote?: string;
+  productionGrowthFactor: number;
+  methodWeights: { budget: number; cbd: number; rate: number };
+
+  /** Backward compatibility: maps to ITRResult fields */
+  impliedTemperature: number;
+  companyBudgetMt: number;
+  cumulativeEmissionsMt: number;
+  overshootMt: number;
+}
+
 export interface LCTResult {
   totalScore: number;
   classification: string;
