@@ -33,19 +33,102 @@ export function TASDashboard({ periods, scenarios }: Props) {
         <UncertaintyCard tas={tas} />
       </div>
 
+      {/* Interpretation Panel */}
+      <TASInterpretation tas={tas} />
+
       {/* Row 2: Cumulative Emissions vs Budget + Sensitivity */}
       <div className="grid gap-4 lg:grid-cols-2">
         <CumulativeChart tas={tas} />
         <SensitivityChart tas={tas} />
       </div>
 
-      {/* Note */}
+      {/* Methodology Note */}
       {tas.intensityNote && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-          <strong>Methodology Note:</strong> {tas.intensityNote}
+          <strong>Why do the methods disagree?</strong> {tas.intensityNote}
         </div>
       )}
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAS Interpretation Panel — explains what the numbers mean
+// ═══════════════════════════════════════════════════════════════
+
+function TASInterpretation({ tas }: { tas: TASResult }) {
+  const t = tas.temperature;
+  const budget = tas.methods.budgetRatio;
+  const rate = tas.methods.rateOfReduction;
+  const cbd = tas.methods.benchmarkDivergence;
+
+  // Dynamic headline interpretation
+  let headline = '';
+  let detail = '';
+  let actionItems: string[] = [];
+  let bgClass = '';
+
+  if (t <= 1.5) {
+    headline = 'Paris Aligned — This transition plan is consistent with limiting warming to 1.5°C';
+    detail = `Your planned trajectory keeps cumulative emissions within your fair-share carbon budget. At ${rate.annualRate}%/yr intensity reduction, you exceed the SBTi steel sector requirement of 4.2%/yr. This level of ambition, if executed, would be consistent with the Paris Agreement\'s most ambitious goal.`;
+    actionItems = ['Maintain execution discipline against this plan', 'Seek SBTi target validation to formalize alignment', 'Consider setting even more ambitious near-term milestones'];
+    bgClass = 'border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800';
+  } else if (t <= 2.0) {
+    headline = '2°C Aligned — Consistent with the Paris Agreement upper bound';
+    detail = `Your plan achieves a ${rate.annualRate}%/yr intensity reduction rate, which is in the range needed for a 2°C pathway. ${budget.overshootMt > 0 ? `However, your cumulative emissions overshoot your fair-share budget by ${budget.overshootMt.toFixed(0)} Mt, primarily because ${tas.productionGrowthFactor > 1.1 ? 'production growth increases absolute emissions even as intensity falls' : 'the reduction pace could be steeper'}.` : 'Your cumulative emissions stay within budget.'} The benchmark divergence analysis shows you are closest to the ${cbd.closestScenario} scenario.`;
+    actionItems = ['Accelerate near-term reductions to close the gap to 1.5°C', 'Review whether production growth assumptions can be moderated', 'Increase low-carbon CAPEX allocation to accelerate technology deployment'];
+    bgClass = 'border-lime-200 bg-lime-50 dark:bg-lime-950/20 dark:border-lime-800';
+  } else if (t <= 3.0) {
+    headline = `Transition Risk — Your plan implies ${t.toFixed(1)}°C of warming`;
+    detail = `At the current trajectory, your company would consume ${budget.cumulativeMt.toFixed(0)} Mt of CO₂ budget against a fair share of ${budget.budgetMt.toFixed(0)} Mt — an overshoot of ${budget.overshootMt.toFixed(0)} Mt. Your intensity reduction rate of ${rate.annualRate}%/yr ${rate.annualRate >= 4.2 ? 'meets' : 'falls short of'} the SBTi steel sector requirement (4.2%/yr). ${tas.productionGrowthFactor > 1.2 ? `Production growth of ${Math.round((tas.productionGrowthFactor - 1) * 100)}% significantly increases absolute emissions, which is why the budget-based temperature (${budget.temperature.toFixed(1)}°C) is higher than the rate-based estimate (${rate.temperature.toFixed(1)}°C).` : ''} Investors and regulators increasingly view >2°C alignment as a material financial risk.`;
+    actionItems = [
+      `Increase annual intensity reduction from ${rate.annualRate}% to at least 4.2%/yr`,
+      budget.overshootMt > 100 ? 'Consider constraining production growth to reduce absolute emissions' : 'Accelerate CCS or hydrogen adoption in near-term periods',
+      'Set science-based targets and establish board-level climate oversight',
+      'Evaluate CAPEX reallocation toward low-carbon production methods',
+    ];
+    bgClass = 'border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800';
+  } else {
+    headline = `Severely Misaligned — Your plan implies ${t.toFixed(1)}°C of warming`;
+    detail = `This transition plan significantly exceeds the Paris Agreement temperature goals. Cumulative emissions of ${budget.cumulativeMt.toFixed(0)} Mt are ${(budget.cumulativeMt / Math.max(1, budget.budgetMt)).toFixed(1)}× your fair-share carbon budget. ${rate.annualRate <= 0 ? 'There is no meaningful intensity reduction in the current plan.' : `The ${rate.annualRate}%/yr reduction rate is well below the 4.2%/yr required for 1.5°C alignment.`} Under tightening climate regulation (EU CBAM, carbon pricing), this trajectory represents significant financial and regulatory risk. Companies in this range face potential stranded asset risk, restricted access to green finance, and increasing carbon costs.`;
+    actionItems = [
+      'Fundamental strategic review of decarbonization pathway required',
+      'Evaluate technology switch from BF-BOF to DRI-EAF or hydrogen-based production',
+      'Set a credible net-zero target with interim milestones',
+      'Engage with SBTi for sector-specific guidance on target-setting',
+      'Assess exposure to EU CBAM and other carbon pricing mechanisms',
+    ];
+    bgClass = 'border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800';
+  }
+
+  return (
+    <Card className={`overflow-hidden border ${bgClass}`}>
+      <CardContent className="pt-5 pb-4">
+        <h3 className="text-sm font-semibold mb-2">{headline}</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-3">{detail}</p>
+
+        {actionItems.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground mb-1.5">Recommended Actions:</p>
+            <ul className="space-y-1">
+              {actionItems.map((item, i) => (
+                <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <span className="mt-0.5 h-1.5 w-1.5 rounded-full bg-current shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Confidence statement */}
+        <p className="text-[10px] text-muted-foreground/60 mt-3 pt-2 border-t border-current/10">
+          This estimate is based on 3 independent calculation methods with {tas.uncertainty.iterations} Monte Carlo simulations.
+          The 80% confidence interval is {tas.uncertainty.p10.toFixed(1)}°C – {tas.uncertainty.p90.toFixed(1)}°C.
+          Sources: IPCC AR6, SBTi Steel Guidance v1.0, IIGCC CBD (2024), GFANZ Portfolio Alignment.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
