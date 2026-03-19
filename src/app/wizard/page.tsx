@@ -58,6 +58,7 @@ import { CSARadarCard } from '@/components/dashboard/csa-radar-card';
 import { calcCVaR } from '@/lib/calc-engine/cvar-assessment';
 import { CVaRBreakdownCard } from '@/components/dashboard/cvar-breakdown-card';
 import { CVaRWaterfallChart } from '@/components/dashboard/cvar-waterfall-chart';
+import { FrameworkDiagnostics } from '@/components/dashboard/framework-diagnostics';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1471,6 +1472,15 @@ export default function WizardPage() {
                         {itrResult && (
                           <ITRSensitivityChart itr={itrResult} />
                         )}
+
+                        {/* Framework Diagnostics (3-tier) */}
+                        <FrameworkDiagnostics
+                          periods={result.periods}
+                          capexResult={capexResult}
+                          methodDataMap={mergedMethodDataMap}
+                          financials={store.companyFinancials}
+                          itrResult={itrResult}
+                        />
 
                         {/* Disclaimer */}
                         <div className="rounded-lg border border-border bg-muted/30 p-4 text-[11px] text-muted-foreground">
